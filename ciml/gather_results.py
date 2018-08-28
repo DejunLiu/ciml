@@ -588,6 +588,41 @@ def save_dataset(dataset, name, data_path=None, s3=None, **kwargs):
 
 
 @click.command()
+@click.option('--dataset-experiment-label', nargs=3, type=str,
+              help="Name of the dataset and experiment.", multiple=True)
+@click.option('--data-keys', '-k', multiple=True, help="Key to export")
+@click.option('--data-path', default=None,
+              help="Path to the raw data, local path or s3://<bucket>")
+@click.option('--s3-profile', default='ibmcloud', help='Named configuration')
+@click.option('--s3-url',
+              default='https://s3.eu-geo.objectstorage.softlayer.net',
+              help='Endpoint URL for the s3 storage')
+@click.option('--output', help="Name of the output file")
+@click.option('--title', help="Title of the graph")
+def plot_experiment_data(dataset_experiment_label, data_keys, data_path,
+                            s3_profile, s3_url, output, title):
+    s3 = get_s3_client(s3_profile=s3_profile, s3_url=s3_url)
+    data = np.ndarray(shape=(len(dataset_experiment_label), len(data_keys)))
+    labels = []
+    for count, d_e_l in enumerate(dataset_experiment_label):
+        exp_data = load_data_json(d_e_l[0], 'eval_' + d_e_l[0],
+                                  sub_folder=d_e_l[1],
+                                  data_path=data_path, s3=s3)
+        labels.append(d_e_l[2])
+        data_count = []
+        for count_k, k in enumerate(data_keys):
+            if k == 'accuracy':
+                data_count.append(1 - exp_data[k])
+            else:
+                data_count.append(exp_data[k])
+        data[count] = data_count
+    df = pd.DataFrame(data, index=labels, columns=data_keys)
+    print("Plotting %s with data %s" % (title, df))
+    data_plot = df.plot(kind='bar', title=title, legend=False, rot=0)
+    data_plot.get_figure().savefig(output)
+
+
+@click.command()
 @click.option('--build-name', default="tempest-full", help="Build name.")
 @click.option('--db-uri', default=default_db_uri, help="DB URI")
 @click.option('--limit', default=0, help="Maximum number of entries")
